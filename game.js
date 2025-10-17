@@ -31,6 +31,21 @@ const ENGLISH_CONFIG_URL = 'config/english.jsonp';
 const GERMAN_CONFIG_URL = 'config/german.jsonp';
 loadLanguageConfig();
 
+window.onload = function() {
+  document.querySelectorAll('.tw').forEach(cell => {
+    cell.title = i18n("Dreifacher Wortwert");
+  });
+  document.querySelectorAll('.dl').forEach(cell => {
+    cell.title = i18n("Doppelter Buchstabenwert");
+  });
+  document.querySelectorAll('.dw').forEach(cell => {
+    cell.title = i18n("Doppelter Wortwert");
+  });
+  document.querySelectorAll('.tl').forEach(cell => {
+    cell.title = i18n("Dreifacher Buchstabenwert");
+  });
+};
+
 function getUrlParameterByName(name, url) {
   if (!url) url = window.location.href;
   name = name.replace(/[\[\]]/g, "\\$&");
