@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="description" content="Scrabble Bahasa Indonesia - Pilih VS AI atau Multiplayer"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/styles.css">
+  <title>Scrabble Bahasa Indonesia - Home</title>
+</head>
+<body>
+  <div class="home-container">
+    <div class="home-card">
+      <h1 class="home-title">🎮 Scrabble</h1>
+      <p class="home-subtitle">Bahasa Indonesia</p>
+      
+      <div class="game-mode-selector">
+        <div class="mode-card" onclick="startGame('ai')">
+          <div class="mode-icon">🤖</div>
+          <h2>VS AI</h2>
+          <p>Bermain melawan komputer dengan berbagai tingkat kesulitan</p>
+        </div>
+        
+        <div class="mode-card" onclick="startGame('multiplayer')">
+          <div class="mode-icon">👥</div>
+          <h2>Multiplayer</h2>
+          <p>Bermain dengan teman secara online dalam ruangan</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function startGame(mode) {
+      if (mode === 'ai') {
+        window.location.href = '/game/ai';
+      } else if (mode === 'multiplayer') {
+        window.location.href = '/game/multiplayer';
+      }
+    }
+  </script>
+</body>
+</html>

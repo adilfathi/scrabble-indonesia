@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="description" content="Scrabble Multiplayer - Bahasa Indonesia"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script type="text/javascript" src="/js/game.js"></script>
+  <script type="text/javascript" src="/js/translation.js"></script>
+  <title>Scrabble Multiplayer - Bahasa Indonesia</title>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="room-container">
+    <div class="room-card">
+      <div class="room-header">
+        <h1 class="room-title">🎮 Scrabble Multiplayer</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">Masukkan nama Anda untuk bergabung</p>
+      </div>
+      <input type="text" id="player-name" class="input" placeholder="Nama Anda" maxlength="20" autofocus>
+      <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button class="button button-primary" onclick="createRoom()">Buat Room Baru</button>
+        <button class="button button-secondary" onclick="joinRoomPrompt()">Gabung Room</button>
+      </div>
+      <div style="margin-top: 20px;">
+        <a href="/" class="button">← Kembali ke Home</a>
+      </div>
+      <div id="status-message" style="margin-top: 20px;"></div>
+    </div>
+  </div>
+
+  <!-- Room Waiting Screen -->
+  <div id="room-screen" class="room-container" style="display: none;">
+    <div class="room-card">
+      <div class="room-header">
+        <h2 class="room-title">Room</h2>
+        <div class="room-code" id="room-code-display">XXXX</div>
+        <p style="color: var(--text-secondary);">Bagikan kode ini ke teman Anda</p>
+      </div>
+      
+      <div class="players-list" id="players-list">
+        <div class="waiting-message" id="waiting-message">Menunggu pemain lain...</div>
+      </div>
+      
+      <div id="room-status" style="text-align: center; margin: 20px 0;">
+        <div class="status-badge status-waiting" id="status-badge">Menunggu</div>
+      </div>
+      
+      <button class="button button-primary" style="width: 100%;" onclick="leaveRoom()">Tinggalkan Room</button>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" style="display: none;">
+    <div class="wrapper">
+      <div class="game">
+        <div style="margin-bottom: 20px;">
+          <a href="index.html" class="button button-secondary">← Kembali ke Home</a>
+        </div>
+        
+        <div id="turn-indicator" style="text-align: center; padding: 15px; background: var(--pastel-cream); border-radius: var(--border-radius); margin-bottom: 20px; font-weight: 600; font-size: 18px;"></div>
+        
+        <table id="board">
+          <tr><td id="s1_1" class="tw" title="Nilai Kata Tiga Kali"><td id="s1_2"><td id="s1_3"><td id="s1_4" class="dl" title="Nilai Huruf Dua Kali"><td id="s1_5"><td id="s1_6"><td id="s1_7"><td id="s1_8" class="tw" title="Nilai Kata Tiga Kali"><td id="s1_9"><td id="s1_10"><td id="s1_11"><td id="s1_12" class="dl" title="Nilai Huruf Dua Kali"><td id="s1_13"><td id="s1_14"><td id="s1_15" class="tw" title="Nilai Kata Tiga Kali"></tr>
+          <tr><td id="s2_1"><td id="s2_2" class="dw" title="Nilai Kata Dua Kali"><td id="s2_3"><td id="s2_4"><td id="s2_5"><td id="s2_6" class="tl" title="Nilai Huruf Tiga Kali"><td id="s2_7"><td id="s2_8"><td id="s2_9"><td id="s2_10" class="tl" title="Nilai Huruf Tiga Kali"><td id="s2_11"><td id="s2_12"><td id="s2_13"><td id="s2_14" class="dw" title="Nilai Kata Dua Kali"><td id="s2_15"></tr>
+          <tr><td id="s3_1"><td id="s3_2"><td id="s3_3" class="dw" title="Nilai Kata Dua Kali"><td id="s3_4"><td id="s3_5"><td id="s3_6"><td id="s3_7" class="dl" title="Nilai Huruf Dua Kali"><td id="s3_8"><td id="s3_9" class="dl" title="Nilai Huruf Dua Kali"><td id="s3_10"><td id="s3_11"><td id="s3_12"><td id="s3_13" class="dw" title="Nilai Kata Dua Kali"><td id="s3_14"><td id="s3_15"></tr>
+          <tr><td id="s4_1" class="dl" title="Nilai Huruf Dua Kali"><td id="s4_2"><td id="s4_3"><td id="s4_4" class="dw" title="Nilai Kata Dua Kali"><td id="s4_5"><td id="s4_6"><td id="s4_7"><td id="s4_8" class="dl" title="Nilai Huruf Dua Kali"><td id="s4_9"><td id="s4_10"><td id="s4_11"><td id="s4_12" class="dw" title="Nilai Kata Dua Kali"><td id="s4_13"><td id="s4_14"><td id="s4_15" class="dl" title="Nilai Huruf Dua Kali"></tr>
+          <tr><td id="s5_1"><td id="s5_2"><td id="s5_3"><td id="s5_4"><td id="s5_5" class="dw" title="Nilai Kata Dua Kali"><td id="s5_6"><td id="s5_7"><td id="s5_8"><td id="s5_9"><td id="s5_10"><td id="s5_11" class="dw" title="Nilai Kata Dua Kali"><td id="s5_12"><td id="s5_13"><td id="s5_14"><td id="s5_15"></tr>
+          <tr><td id="s6_1"><td id="s6_2" class="tl" title="Nilai Huruf Tiga Kali"><td id="s6_3"><td id="s6_4"><td id="s6_5"><td id="s6_6" class="tl" title="Nilai Huruf Tiga Kali"><td id="s6_7"><td id="s6_8"><td id="s6_9"><td id="s6_10" class="tl" title="Nilai Huruf Tiga Kali"><td id="s6_11"><td id="s6_12"><td id="s6_13"><td id="s6_14" class="tl" title="Nilai Huruf Tiga Kali"><td id="s6_15"></tr>
+          <tr><td id="s7_1"><td id="s7_2"><td id="s7_3" class="dl" title="Nilai Huruf Dua Kali"><td id="s7_4"><td id="s7_5"><td id="s7_6"><td id="s7_7" class="dl" title="Nilai Huruf Dua Kali"><td id="s7_8"><td id="s7_9" class="dl" title="Nilai Huruf Dua Kali"><td id="s7_10"><td id="s7_11"><td id="s7_12"><td id="s7_13" class="dl" title="Nilai Huruf Dua Kali"><td id="s7_14"><td id="s7_15"></tr>
+          <tr><td id="s8_1" class="tw" title="Nilai Kata Tiga Kali"><td id="s8_2"><td id="s8_3"><td id="s8_4" class="dl" title="Nilai Huruf Dua Kali"><td id="s8_5"><td id="s8_6"><td id="s8_7"><td id="s8_8" class="start dw"><td id="s8_9"><td id="s8_10"><td id="s8_11"><td id="s8_12" class="dl" title="Nilai Huruf Dua Kali"><td id="s8_13"><td id="s8_14"><td id="s8_15" class="tw" title="Nilai Kata Tiga Kali"></tr>
+          <tr><td id="s9_1"><td id="s9_2"><td id="s9_3" class="dl" title="Nilai Huruf Dua Kali"><td id="s9_4"><td id="s9_5"><td id="s9_6"><td id="s9_7" class="dl" title="Nilai Huruf Dua Kali"><td id="s9_8"><td id="s9_9" class="dl" title="Nilai Huruf Dua Kali"><td id="s9_10"><td id="s9_11"><td id="s9_12"><td id="s9_13" class="dl" title="Nilai Huruf Dua Kali"><td id="s9_14"><td id="s9_15"></tr>
+          <tr><td id="s10_1"><td id="s10_2" class="tl" title="Nilai Huruf Tiga Kali"><td id="s10_3"><td id="s10_4"><td id="s10_5"><td id="s10_6" class="tl" title="Nilai Huruf Tiga Kali"><td id="s10_7"><td id="s10_8"><td id="s10_9"><td id="s10_10" class="tl" title="Nilai Huruf Tiga Kali"><td id="s10_11"><td id="s10_12"><td id="s10_13"><td id="s10_14" class="tl" title="Nilai Huruf Tiga Kali"><td id="s10_15"></tr>
+          <tr><td id="s11_1"><td id="s11_2"><td id="s11_3"><td id="s11_4"><td id="s11_5" class="dw" title="Nilai Kata Dua Kali"><td id="s11_6"><td id="s11_7"><td id="s11_8"><td id="s11_9"><td id="s11_10"><td id="s11_11" class="dw" title="Nilai Kata Dua Kali"><td id="s11_12"><td id="s11_13"><td id="s11_14"><td id="s11_15"></tr>
+          <tr><td id="s12_1" class="dl" title="Nilai Huruf Dua Kali"><td id="s12_2"><td id="s12_3"><td id="s12_4" class="dw" title="Nilai Kata Dua Kali"><td id="s12_5"><td id="s12_6"><td id="s12_7"><td id="s12_8" class="dl" title="Nilai Huruf Dua Kali"><td id="s12_9"><td id="s12_10"><td id="s12_11"><td id="s12_12" class="dw" title="Nilai Kata Dua Kali"><td id="s12_13"><td id="s12_14"><td id="s12_15" class="dl" title="Nilai Huruf Dua Kali"></tr>
+          <tr><td id="s13_1"><td id="s13_2"><td id="s13_3" class="dw" title="Nilai Kata Dua Kali"><td id="s13_4"><td id="s13_5"><td id="s13_6"><td id="s13_7" class="dl" title="Nilai Huruf Dua Kali"><td id="s13_8"><td id="s13_9" class="dl" title="Nilai Huruf Dua Kali"><td id="s13_10"><td id="s13_11"><td id="s13_12"><td id="s13_13" class="dw" title="Nilai Kata Dua Kali"><td id="s13_14"><td id="s13_15"></tr>
+          <tr><td id="s14_1"><td id="s14_2" class="dw" title="Nilai Kata Dua Kali"><td id="s14_3"><td id="s14_4"><td id="s14_5"><td id="s14_6" class="tl" title="Nilai Huruf Tiga Kali"><td id="s14_7"><td id="s14_8"><td id="s14_9"><td id="s14_10" class="tl" title="Nilai Huruf Tiga Kali"><td id="s14_11"><td id="s14_12"><td id="s14_13"><td id="s14_14" class="dw" title="Nilai Kata Dua Kali"><td id="s14_15"></tr>
+          <tr><td id="s15_1" class="tw" title="Nilai Kata Tiga Kali"><td id="s15_2"><td id="s15_3"><td id="s15_4" class="dl" title="Nilai Huruf Dua Kali"><td id="s15_5"><td id="s15_6"><td id="s15_7"><td id="s15_8" class="tw" title="Nilai Kata Tiga Kali"><td id="s15_9"><td id="s15_10"><td id="s15_11"><td id="s15_12" class="dl" title="Nilai Huruf Dua Kali"><td id="s15_13"><td id="s15_14"><td id="s15_15" class="tw" title="Nilai Kata Tiga Kali"></tr>
+        </table>
+        
+        <div id="your_letters">Huruf Anda:</div>
+        <div id="player_1_letters"></div>
+        
+        <button class="button button-primary" onclick="onFinishMoveClick()" id="move">Mainkan</button>
+        <button class="button button-secondary" onclick="onSelectSwapTilesClicked()" id="pass">Tukar Huruf (Lewati)</button>
+        <button class="button" onclick="shuffleLetters()" id="shuffle">🔀 Acak</button>
+        
+        <div class="score_container">
+          <div class="player_name" id="player1-name">Anda: </div><div class="player_name" id="player_1_points">0</div><br>
+          <div class="player_name" id="player2-name">Lawan: </div><div class="player_name" id="player_2_points">0</div>
+          <div class="letters_left">Huruf yang Tersisa: <span id="letters_left"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="input_container"></div>
+
+  <script>
+    // Connect to socket.io - will auto-detect server
+    const socket = io(window.location.origin);
+    let currentRoomCode = null;
+    let currentGameId = null;
+    let isMyTurn = false;
+    let myPlayerName = '';
+    let opponentName = '';
+    
+    // Initialize global variables from game.js
+    var BOARD = null;
+    var BOARD_LETTERS = Array(225).fill('');
+    var TO_BE_PLAYED_BOARD_LETTER_INDEXES = [];
+    var PLAYER_1_LETTERS = [];
+    var PLAYER_1_POINTS = 0;
+    var PLAYER_2_LETTERS = [];
+    var PLAYER_2_POINTS = 0;
+    var LETTER_STASH = [];
+    var POINTS_PER_LETTER = {};
+
+    function showStatus(message, type = 'info') {
+      const statusDiv = document.getElementById('status-message');
+      statusDiv.textContent = message;
+      statusDiv.style.display = 'block';
+      statusDiv.style.padding = '12px';
+      statusDiv.style.borderRadius = 'var(--border-radius)';
+      if (type === 'error') {
+        statusDiv.style.background = '#ffebee';
+        statusDiv.style.color = '#c62828';
+      } else if (type === 'success') {
+        statusDiv.style.background = '#e8f5e9';
+        statusDiv.style.color = '#2e7d32';
+      } else {
+        statusDiv.style.background = '#fff3e0';
+        statusDiv.style.color = '#e65100';
+      }
+    }
+
+    function createRoom() {
+      const playerName = document.getElementById('player-name').value.trim();
+      if (!playerName) {
+        showStatus('Mohon masukkan nama Anda', 'error');
+        return;
+      }
+      myPlayerName = playerName;
+      socket.emit('createRoom', { playerName });
+      showStatus('Membuat room...', 'info');
+    }
+
+    function joinRoomPrompt() {
+      const playerName = document.getElementById('player-name').value.trim();
+      if (!playerName) {
+        showStatus('Mohon masukkan nama Anda', 'error');
+        return;
+      }
+      const roomCode = prompt('Masukkan kode room:');
+      if (roomCode && roomCode.trim()) {
+        myPlayerName = playerName;
+        socket.emit('joinRoom', { playerName, roomCode: roomCode.trim().toUpperCase() });
+        showStatus('Bergabung ke room...', 'info');
+      }
+    }
+
+    function leaveRoom() {
+      if (currentRoomCode) {
+        socket.emit('leaveRoom', { roomCode: currentRoomCode });
+      }
+      location.reload();
+    }
+
+    socket.on('roomCreated', (data) => {
+      currentRoomCode = data.roomCode;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('room-screen').style.display = 'flex';
+      document.getElementById('room-code-display').textContent = data.roomCode;
+      updatePlayersList([{ name: myPlayerName, id: socket.id }]);
+    });
+
+    socket.on('roomJoined', (data) => {
+      currentRoomCode = data.roomCode;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('room-screen').style.display = 'flex';
+      document.getElementById('room-code-display').textContent = data.roomCode;
+      updatePlayersList(data.players);
+    });
+
+    socket.on('playerJoined', (data) => {
+      updatePlayersList(data.players);
+      const statusBadge = document.getElementById('status-badge');
+      if (statusBadge) {
+        if (data.players.length === 2) {
+          statusBadge.textContent = 'Siap - Permainan akan dimulai';
+          statusBadge.className = 'status-badge status-ready';
+        } else {
+          statusBadge.textContent = 'Menunggu pemain lain...';
+          statusBadge.className = 'status-badge status-waiting';
+        }
+      }
+    });
+
+    socket.on('gameStarted', (data) => {
+      currentGameId = data.gameId;
+      opponentName = data.opponent;
+      isMyTurn = data.isYourTurn;
+      
+      document.getElementById('room-screen').style.display = 'none';
+      document.getElementById('game-screen').style.display = 'block';
+      
+      document.getElementById('player1-name').textContent = myPlayerName + ': ';
+      document.getElementById('player2-name').textContent = opponentName + ': ';
+      
+      PLAYER_1_LETTERS = data.yourLetters;
+      
+      // Load language config
+      loadLanguageConfigForMultiplayer();
+      
+      setTimeout(() => {
+        if (typeof printPlayersLetters === 'function') {
+          printPlayersLetters();
+        }
+        updateTurnIndicator();
+        initializeBoard();
+        socket.emit('getGameState', { gameId: currentGameId });
+      }, 500);
+    });
+    
+    function loadLanguageConfigForMultiplayer() {
+      const request = new XMLHttpRequest();
+      request.open("GET", "config/indonesian.jsonp", true);
+      request.onreadystatechange = function() {
+        if (request.readyState === 4) {
+          const LANGUAGE_CONFIG = JSON.parse(request.responseText);
+          LETTER_STASH = LANGUAGE_CONFIG.LETTER_STASH;
+          POINTS_PER_LETTER = LANGUAGE_CONFIG.POINTS_PER_LETTER;
+        }
+      };
+      request.send(null);
+    }
+
+    socket.on('gameState', (data) => {
+      BOARD_LETTERS = data.boardLetters;
+      PLAYER_1_LETTERS = data.yourLetters;
+      PLAYER_1_POINTS = data.yourScore;
+      PLAYER_2_POINTS = data.opponentScore;
+      isMyTurn = data.isYourTurn;
+      
+      if (typeof printBoard === 'function') printBoard();
+      if (typeof printPlayersLetters === 'function') printPlayersLetters();
+      updateTurnIndicator();
+      updatePlayButton();
+    });
+
+    socket.on('opponentMove', (data) => {
+      BOARD_LETTERS = data.boardLetters;
+      PLAYER_2_POINTS = data.opponentScore;
+      isMyTurn = data.isYourTurn;
+      
+      if (typeof printBoard === 'function') printBoard();
+      updateTurnIndicator();
+      updatePlayButton();
+    });
+
+    socket.on('moveAccepted', (data) => {
+      BOARD_LETTERS = data.boardLetters;
+      PLAYER_1_LETTERS = data.yourLetters;
+      PLAYER_1_POINTS = data.yourScore;
+      isMyTurn = data.isYourTurn !== undefined ? data.isYourTurn : false;
+      
+      TO_BE_PLAYED_BOARD_LETTER_INDEXES = [];
+      if (typeof printBoard === 'function') printBoard();
+      if (typeof printPlayersLetters === 'function') printPlayersLetters();
+      updatePlayButton();
+      updateTurnIndicator();
+    });
+
+    socket.on('opponentPassed', (data) => {
+      isMyTurn = data.isYourTurn !== undefined ? data.isYourTurn : true;
+      updateTurnIndicator();
+      updatePlayButton();
+    });
+
+    socket.on('gameEnded', (data) => {
+      const message = data.winner 
+        ? `Anda Menang! Skor: ${data.yourScore} vs ${data.opponentScore}`
+        : `Anda Kalah! Skor: ${data.yourScore} vs ${data.opponentScore}`;
+      alert(message);
+    });
+
+    socket.on('opponentDisconnected', (data) => {
+      alert(data.message);
+      location.reload();
+    });
+
+    socket.on('error', (data) => {
+      showStatus(data.message, 'error');
+    });
+
+    socket.on('roomError', (data) => {
+      showStatus(data.message, 'error');
+    });
+
+    function updatePlayersList(players) {
+      const playersList = document.getElementById('players-list');
+      if (players.length === 0) {
+        playersList.innerHTML = '<div class="waiting-message">Menunggu pemain lain...</div>';
+      } else {
+        playersList.innerHTML = players.map(p => 
+          `<div class="player-item">${p.name}</div>`
+        ).join('');
+      }
+    }
+
+    function updateTurnIndicator() {
+      const indicator = document.getElementById('turn-indicator');
+      if (!indicator) return;
+      
+      if (isMyTurn) {
+        indicator.textContent = '🎯 Giliran Anda';
+        indicator.style.background = 'var(--pastel-green)';
+        indicator.style.color = 'var(--text-primary)';
+      } else {
+        indicator.textContent = '⏳ Giliran ' + (opponentName || 'Lawan');
+        indicator.style.background = 'var(--pastel-yellow)';
+        indicator.style.color = 'var(--text-primary)';
+      }
+    }
+    
+    function updatePlayButton() {
+      const moveBtn = document.getElementById("move");
+      if (!moveBtn) return;
+      
+      if (!currentGameId || !isMyTurn) {
+        moveBtn.disabled = true;
+        moveBtn.innerHTML = "Mainkan";
+        return;
+      }
+      
+      if (typeof checkValidStateAndCalculatePoints !== 'function') {
+        moveBtn.disabled = true;
+        moveBtn.innerHTML = "Memuat...";
+        return;
+      }
+      
+      const points = checkValidStateAndCalculatePoints();
+      if (points) {
+        moveBtn.innerHTML = "Mainkan (untuk " + points + " poin)";
+        moveBtn.disabled = false;
+      } else {
+        moveBtn.innerHTML = "Mainkan";
+        moveBtn.disabled = true;
+      }
+    }
+    
+    // Update play button when board changes
+    setInterval(() => {
+      if (currentGameId && isMyTurn) {
+        updatePlayButton();
+      }
+    }, 500);
+
+    function initializeBoard() {
+      BOARD = document.getElementById("board");
+      if (!BOARD) return;
+      
+      for (var i=0; i<15; i++) {
+        for (var j=0; j<15; j++) {
+          if (BOARD.rows[i] && BOARD.rows[i].cells[j]) {
+            BOARD.rows[i].cells[j].onclick=showLetterInput;
+          }
+        }
+      }
+      if (document.getElementById("move")) {
+        document.getElementById("move").disabled = true;
+      }
+    }
+
+    // Override game functions for multiplayer
+    window.onFinishMoveClick = function() {
+      if (!currentGameId) {
+        alert('Belum ada permainan aktif');
+        return;
+      }
+      if (!isMyTurn) {
+        alert('Bukan giliran Anda!');
+        return;
+      }
+      
+      if (typeof checkValidStateAndCalculatePoints !== 'function') {
+        alert('Fungsi game belum dimuat, silakan refresh halaman');
+        return;
+      }
+      
+      const points = checkValidStateAndCalculatePoints();
+      if (!points) {
+        alert('Kata tidak valid! Pastikan kata terhubung dan valid.');
+        return;
+      }
+      
+      if (typeof findWordsAndPointsByActiveLetters !== 'function') {
+        alert('Fungsi game belum dimuat, silakan refresh halaman');
+        return;
+      }
+      
+      socket.emit('makeMove', {
+        gameId: currentGameId,
+        boardLetters: BOARD_LETTERS,
+        words: findWordsAndPointsByActiveLetters()[0],
+        points: points,
+        remainingLetters: PLAYER_1_LETTERS
+      });
+      
+      TO_BE_PLAYED_BOARD_LETTER_INDEXES = [];
+      updatePlayButton();
+    };
+
+    const originalOnSelectSwapTilesClicked = window.onSelectSwapTilesClicked;
+    window.onSelectSwapTilesClicked = function() {
+      if (!currentGameId) {
+        alert('Belum ada permainan aktif');
+        return;
+      }
+      if (!isMyTurn) {
+        alert('Bukan giliran Anda!');
+        return;
+      }
+      
+      takeBackCurrentTiles();
+      
+      if (LETTER_STASH.length === 0) {
+        socket.emit('passTurn', { gameId: currentGameId });
+        return;
+      }
+
+      var buttons=document.getElementsByClassName('hand_letter');
+      for (var i=0; i<buttons.length; i++) {
+        buttons[i].onclick = onLetterToSwapClicked;
+      }
+
+      var button = document.getElementById('pass');
+      button.innerHTML = 'Pilih huruf yang ingin ditukar, lalu klik di sini';
+      button.onclick = function() {
+        var letterElements = document.getElementsByClassName('selected_to_switch');
+        var droppedLetters = [];
+        for (var i = 0; i < letterElements.length; i++) {
+          var letter = letterElements[i].innerHTML.charAt(0);
+          var letter_position = PLAYER_1_LETTERS.indexOf(letter);
+          if (letter_position !== -1) {
+            PLAYER_1_LETTERS.splice(letter_position,1);
+            droppedLetters.push(letter);
+          }
+        }
+
+        drawTiles(PLAYER_1_LETTERS);
+        LETTER_STASH.push(...droppedLetters);
+        printPlayersLetters();
+
+        button.innerHTML = 'Tukar Huruf (Lewati)';
+        button.onclick = onSelectSwapTilesClicked;
+
+        socket.emit('passTurn', { gameId: currentGameId });
+      };
+    };
+
+    // Enter key to submit
+    document.getElementById('player-name').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        createRoom();
+      }
+    });
+  </script>
+</body>
+</html>
+

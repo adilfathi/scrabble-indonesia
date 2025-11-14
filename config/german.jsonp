@@ -61,5 +61,5 @@
     "Ö":8,
     "Ü":6
   },
-  "DICTIONARY_URL": "dict/german.txt"
+  "DICTIONARY_URL": "/dict/german.txt"
 }
