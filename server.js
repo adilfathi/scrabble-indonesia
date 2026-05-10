@@ -23,13 +23,31 @@ const { cleanupOldRooms } = require('./src/utils/gameUtils');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve config and dict
 app.use('/config', express.static(path.join(__dirname, 'config')));
 app.use('/dict', express.static(path.join(__dirname, 'dict')));
 
-// Routes
-app.use('/', routes);
+// Serve React client build
+const clientBuildPath = path.join(__dirname, 'client', 'dist');
+app.use(express.static(clientBuildPath));
+
+// Legacy static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API Routes
+app.use('/api', routes);
+
+// SPA fallback - serve React index.html for all non-API routes
+app.get('*', (req, res) => {
+  const indexPath = path.join(clientBuildPath, 'index.html');
+  const fs = require('fs');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    // Fallback to legacy pages if React build doesn't exist
+    res.sendFile(path.join(__dirname, 'public', 'pages', 'index.html'));
+  }
+});
 
 // Store rooms and games
 const rooms = new Map();
@@ -42,21 +60,22 @@ io.on('connection', (socket) => {
   // Create new room
   socket.on('createRoom', (data) => {
     try {
-      const { playerName, language = 'indonesian' } = data;
+      const { playerName, gameMode = '10_giliran', language = 'indonesian' } = data;
       
       if (!playerName || playerName.trim().length === 0) {
         socket.emit('error', { message: 'Nama tidak boleh kosong' });
         return;
       }
       
-      const room = new Room(socket.id, playerName.trim(), language);
+      const room = new Room(socket.id, playerName.trim(), gameMode, language);
       rooms.set(room.code, room);
       Room.existingCodes.add(room.code);
       socket.join(room.code);
       
       socket.emit('roomCreated', {
         roomCode: room.code,
-        players: room.players
+        players: room.players,
+        gameMode: room.gameMode
       });
       
       console.log(`Room ${room.code} created by ${playerName}`);
@@ -88,7 +107,10 @@ io.on('connection', (socket) => {
         return;
       }
       
-      if (room.isFull()) {
+      // Check if player is rejoining
+      const isRejoining = room.players.some(p => p.name === playerName.trim());
+
+      if (!isRejoining && room.isFull()) {
         socket.emit('roomError', { message: 'Room sudah penuh!' });
         return;
       }
@@ -99,16 +121,36 @@ io.on('connection', (socket) => {
       // Notify all players in room
       io.to(room.code).emit('playerJoined', {
         roomCode: room.code,
-        players: room.players
+        players: room.players,
+        gameMode: room.gameMode
       });
       
       socket.emit('roomJoined', {
         roomCode: room.code,
-        players: room.players
+        players: room.players,
+        gameMode: room.gameMode
       });
       
-      // Start game if 2 players
-      if (room.isFull()) {
+      // If game already exists, send state to rejoining player
+      if (room.game) {
+        const game = room.game;
+        const gameState = game.getGameStateForPlayer(socket.id);
+        socket.emit('gameStarted', {
+          gameId: game.id,
+          opponent: gameState.opponent,
+          yourLetters: gameState.yourLetters,
+          isYourTurn: gameState.isYourTurn
+        });
+        
+        // Also send current board state immediately
+        socket.emit('moveAccepted', {
+          boardLetters: game.boardLetters,
+          yourLetters: gameState.yourLetters,
+          yourScore: gameState.yourScore,
+          isYourTurn: gameState.isYourTurn
+        });
+      } else if (room.isFull()) {
+        // Start game if 2 players and not already started
         setTimeout(() => {
           try {
             const game = room.startGame();
@@ -116,13 +158,17 @@ io.on('connection', (socket) => {
             
             // Notify both players
             room.players.forEach(player => {
-              const gameState = game.getGameStateForPlayer(player.id);
-              io.to(player.id).emit('gameStarted', {
-                gameId: game.id,
-                opponent: gameState.opponent,
-                yourLetters: gameState.yourLetters,
-                isYourTurn: gameState.isYourTurn
-              });
+              const playerSocket = Array.from(io.sockets.sockets.values())
+                .find(s => s.id === player.id);
+              if (playerSocket) {
+                const gameState = game.getGameStateForPlayer(player.id);
+                playerSocket.emit('gameStarted', {
+                  gameId: game.id,
+                  opponent: gameState.opponent,
+                  yourLetters: gameState.yourLetters,
+                  isYourTurn: gameState.isYourTurn
+                });
+              }
             });
             
             console.log(`Game ${game.id} started in room ${room.code}`);
@@ -215,7 +261,9 @@ io.on('connection', (socket) => {
         boardLetters: game.boardLetters,
         yourLetters: gameState.yourLetters,
         yourScore: gameState.yourScore,
-        isYourTurn: false
+        isYourTurn: false,
+        playerTurns: gameState.playerTurns,
+        aiTurns: gameState.aiTurns
       });
       
       const opponentSocket = Array.from(io.sockets.sockets.values())
@@ -226,7 +274,9 @@ io.on('connection', (socket) => {
           boardLetters: game.boardLetters,
           opponentScore: gameState.yourScore,
           isYourTurn: true,
-          letterStash: game.letterStash.length
+          letterStash: game.letterStash.length,
+          playerTurns: opponentState.playerTurns,
+          aiTurns: opponentState.aiTurns
         });
       }
     } catch (error) {
@@ -277,15 +327,20 @@ io.on('connection', (socket) => {
           boardLetters: game.boardLetters,
           yourLetters: gameState.yourLetters,
           yourScore: gameState.yourScore,
-          isYourTurn: false
+          isYourTurn: false,
+          playerTurns: gameState.playerTurns,
+          aiTurns: gameState.aiTurns
         });
         
         const opponentSocket = Array.from(io.sockets.sockets.values())
           .find(s => s.id === opponentId);
         
         if (opponentSocket) {
+          const opponentState = game.getGameStateForPlayer(opponentId);
           opponentSocket.emit('opponentPassed', {
-            isYourTurn: true
+            isYourTurn: true,
+            playerTurns: opponentState.playerTurns,
+            aiTurns: opponentState.aiTurns
           });
         }
       }
@@ -294,33 +349,47 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: error.message || 'Gagal melewatkan giliran' });
     }
   });
+
+  // Toggle Pause
+  socket.on('togglePause', (data) => {
+    try {
+      const { roomCode } = data;
+      const room = rooms.get(roomCode);
+      if (room) {
+        room.isPaused = !room.isPaused;
+        room.updateActivity();
+        io.to(room.code).emit('pauseToggled', {
+          isPaused: room.isPaused,
+          message: room.isPaused ? 'Permainan dihentikan sejenak' : 'Permainan dilanjutkan'
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling pause:', error);
+    }
+  });
   
   // Disconnect handler
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
     
-    // Remove from all rooms
+    // Mark player offline in all rooms they are in
     for (const [roomCode, room] of rooms.entries()) {
       const playerIndex = room.players.findIndex(p => p.id === socket.id);
       if (playerIndex !== -1) {
-        const isEmpty = room.removePlayer(socket.id);
+        room.markPlayerOffline(socket.id);
         
-        if (isEmpty) {
-          rooms.delete(roomCode);
-          Room.existingCodes.delete(roomCode);
-          if (room.gameId) {
-            games.delete(room.gameId);
+        // Notify remaining online players
+        room.players.forEach(p => {
+          if (p.isOnline && p.id !== socket.id) {
+            const opponentSocket = Array.from(io.sockets.sockets.values()).find(s => s.id === p.id);
+            if (opponentSocket) {
+              opponentSocket.emit('opponentDisconnected', {
+                message: 'Lawan Anda terputus (offline). Room akan disimpan selama 20 menit.'
+              });
+            }
           }
-        } else {
-          // Notify remaining player
-          const opponentSocket = Array.from(io.sockets.sockets.values())
-            .find(s => s.id === room.players[0].id);
-          if (opponentSocket) {
-            opponentSocket.emit('opponentDisconnected', {
-              message: 'Lawan Anda telah meninggalkan permainan'
-            });
-          }
-        }
+        });
+        // We don't delete the room here anymore. Cleanup handles it after 20 mins.
         break;
       }
     }

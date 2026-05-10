@@ -34,18 +34,20 @@ function isValidRoomCode(code) {
 }
 
 /**
- * Cleanup old rooms (older than 30 minutes)
+ * Cleanup old rooms (older than 20 minutes of inactivity)
  */
 function cleanupOldRooms(roomsMap, Room) {
   const now = Date.now();
-  const timeout = 30 * 60 * 1000; // 30 minutes
+  const timeout = 20 * 60 * 1000; // 20 minutes
   
   for (const [code, room] of roomsMap.entries()) {
-    if (room.players.length === 0 && (now - room.createdAt > timeout)) {
+    // Check if room has been inactive for more than 20 mins
+    if (room.lastActivity && (now - room.lastActivity > timeout)) {
       roomsMap.delete(code);
       if (Room && Room.existingCodes) {
         Room.existingCodes.delete(code);
       }
+      console.log(`Cleaned up expired room: ${code}`);
     }
   }
 }

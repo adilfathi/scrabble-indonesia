@@ -5,7 +5,7 @@ const { loadLanguageConfig, shuffleArray } = require('../controllers/gameControl
  * Represents a Scrabble game instance
  */
 class Game {
-  constructor(player1Id, player1Name, player2Id, player2Name, language = 'indonesian') {
+  constructor(player1Id, player1Name, player2Id, player2Name, gameMode = '100_huruf', language = 'indonesian') {
     this.id = `game_${player1Id}_${player2Id}_${Date.now()}`;
     this.players = [player1Id, player2Id];
     this.playerNames = {
@@ -15,11 +15,18 @@ class Game {
     this.currentPlayer = player1Id;
     this.boardLetters = Array(225).fill('');
     this.language = language;
+    this.gameMode = gameMode;
+    
+    // Initialize turn tracking
+    this.playerTurns = {
+      [player1Id]: 0,
+      [player2Id]: 0
+    };
     
     // Initialize letter stash and player letters
     const config = loadLanguageConfig(language);
     this.letterStash = shuffleArray(config.LETTER_STASH);
-    this.pointsPerLetter = config.POINTS_PER_LETTER;
+    this.pointsPerLetter = config.pointsPerLetter || config.POINTS_PER_LETTER;
     
     // Draw 7 letters for each player
     this.playerLetters = {
@@ -46,6 +53,33 @@ class Game {
     this.bothPlayerPassCount = 0;
     this.isFinished = false;
     this.createdAt = Date.now();
+  }
+
+  checkEndConditions() {
+    // Check mode-specific turn limits
+    if (this.gameMode === '30_giliran') {
+      if (this.playerTurns[this.players[0]] >= 30 && this.playerTurns[this.players[1]] >= 30) {
+        this.isFinished = true;
+      }
+    } else if (this.gameMode === '10_giliran') {
+      if (this.playerTurns[this.players[0]] >= 10 && this.playerTurns[this.players[1]] >= 10) {
+        this.isFinished = true;
+      }
+    } else if (this.gameMode === '3_giliran') {
+      if (this.playerTurns[this.players[0]] >= 3 && this.playerTurns[this.players[1]] >= 3) {
+        this.isFinished = true;
+      }
+    }
+    
+    // Pass limit
+    if (this.bothPlayerPassCount >= 4) {
+      this.isFinished = true;
+    }
+
+    // Out of letters
+    if (this.letterStash.length === 0 && (this.playerLetters[this.players[0]].length === 0 || this.playerLetters[this.players[1]].length === 0)) {
+      this.isFinished = true;
+    }
   }
   
   /**
@@ -74,6 +108,8 @@ class Game {
       remainingLetters.push(this.letterStash.splice(index, 1)[0]);
     }
     this.playerLetters[playerId] = remainingLetters;
+    this.playerTurns[playerId]++;
+    this.checkEndConditions();
     
     this.switchTurn();
   }
@@ -87,11 +123,9 @@ class Game {
     }
     
     this.bothPlayerPassCount++;
+    this.playerTurns[playerId]++;
+    this.checkEndConditions();
     this.switchTurn();
-    
-    if (this.bothPlayerPassCount >= 4) {
-      this.isFinished = true;
-    }
   }
   
   /**
@@ -116,7 +150,9 @@ class Game {
       letterStash: this.letterStash.length,
       isYourTurn: this.currentPlayer === playerId,
       isFinished: this.isFinished,
-      opponent: this.playerNames[opponentId]
+      opponent: this.playerNames[opponentId],
+      playerTurns: this.playerTurns[playerId],
+      aiTurns: this.playerTurns[opponentId]
     };
   }
 }

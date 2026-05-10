@@ -18,12 +18,12 @@ function loadLanguageConfig(language = 'indonesian') {
 }
 
 /**
- * Generate random room code (4 uppercase letters)
+ * Generate random room code (6 uppercase letters)
  */
 function generateRoomCode() {
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let code = '';
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     code += letters[Math.floor(Math.random() * letters.length)];
   }
   return code;

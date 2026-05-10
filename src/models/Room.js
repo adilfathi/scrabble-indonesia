@@ -6,13 +6,20 @@ const { generateRoomCode } = require('../controllers/gameController');
  * Represents a game room for multiplayer
  */
 class Room {
-  constructor(creatorId, creatorName, language = 'indonesian') {
+  constructor(creatorId, creatorName, gameMode = '100_huruf', language = 'indonesian') {
     this.code = this.generateUniqueCode();
-    this.players = [{ id: creatorId, name: creatorName }];
+    this.players = [{ id: creatorId, name: creatorName, isOnline: true }];
+    this.gameMode = gameMode;
     this.gameId = null;
     this.game = null;
     this.language = language;
     this.createdAt = Date.now();
+    this.lastActivity = Date.now();
+    this.isPaused = false;
+  }
+
+  updateActivity() {
+    this.lastActivity = Date.now();
   }
   
   /**
@@ -30,6 +37,15 @@ class Room {
    * Add player to room
    */
   addPlayer(playerId, playerName) {
+    // Check if player is rejoining (same name)
+    const existingPlayer = this.players.find(p => p.name === playerName);
+    if (existingPlayer) {
+      existingPlayer.id = playerId;
+      existingPlayer.isOnline = true;
+      this.updateActivity();
+      return;
+    }
+
     if (this.players.length >= 2) {
       throw new Error('Room is full');
     }
@@ -37,8 +53,9 @@ class Room {
     if (this.players.some(p => p.id === playerId)) {
       throw new Error('Player already in room');
     }
-    
-    this.players.push({ id: playerId, name: playerName });
+
+    this.players.push({ id: playerId, name: playerName, isOnline: true });
+    this.updateActivity();
   }
   
   /**
@@ -46,7 +63,19 @@ class Room {
    */
   removePlayer(playerId) {
     this.players = this.players.filter(p => p.id !== playerId);
+    this.updateActivity();
     return this.players.length === 0; // Returns true if room is now empty
+  }
+
+  /**
+   * Mark player offline
+   */
+  markPlayerOffline(playerId) {
+    const player = this.players.find(p => p.id === playerId);
+    if (player) {
+      player.isOnline = false;
+      this.updateActivity();
+    }
   }
   
   /**
@@ -69,6 +98,7 @@ class Room {
       this.players[0].name,
       this.players[1].id,
       this.players[1].name,
+      this.gameMode,
       this.language
     );
     
