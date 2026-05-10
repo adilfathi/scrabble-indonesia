@@ -12,9 +12,11 @@ import {
   TOTAL_CELLS,
   HAND_SIZE,
   GAME_MODE_30,
+  GAME_MODE_20,
   GAME_MODE_10,
   GAME_MODE_3,
   MAX_TURNS_MODE_30,
+  MAX_TURNS_MODE_20,
   MAX_TURNS_MODE_10,
   MAX_TURNS_MODE_3,
   TURN_TIMER_SECONDS,
@@ -169,6 +171,7 @@ export default function useGameEngine() {
 
   const checkTurnLimitEnd = (pTurns: number, aTurns: number) => {
     if (gameMode === GAME_MODE_30 && pTurns >= MAX_TURNS_MODE_30 && aTurns >= MAX_TURNS_MODE_30) return true;
+    if (gameMode === GAME_MODE_20 && pTurns >= MAX_TURNS_MODE_20 && aTurns >= MAX_TURNS_MODE_20) return true;
     if (gameMode === GAME_MODE_10 && pTurns >= MAX_TURNS_MODE_10 && aTurns >= MAX_TURNS_MODE_10) return true;
     if (gameMode === GAME_MODE_3 && pTurns >= MAX_TURNS_MODE_3 && aTurns >= MAX_TURNS_MODE_3) return true;
     return false;
@@ -205,7 +208,7 @@ export default function useGameEngine() {
 
     setIsPlayerTurn(false);
     setIsAiThinking(true);
-    setTimeout(() => doAiTurn(drawn.stash, drawn.hand), 200);
+    setTimeout(() => doAiTurn(drawn.stash, drawn.hand, newPlayerTurns), 200);
   }, [isPlayerTurn, isGameOver, boardLetters, placedIndexes, playerHand, stash, playerScore, aiScore, aiHand, playerTurns, aiTurns, gameMode]);
 
   const handlePass = useCallback(() => {
@@ -238,14 +241,14 @@ export default function useGameEngine() {
 
     setIsPlayerTurn(false);
     setIsAiThinking(true);
-    setTimeout(() => doAiTurn(stash, playerHand), 200);
+    setTimeout(() => doAiTurn(stash, playerHand, newPlayerTurns), 200);
   }, [isGameOver, passCount, placedIndexes, boardLetters, playerHand, stash, playerScore, aiScore, aiHand, playerTurns, aiTurns, gameMode]);
 
   useEffect(() => {
     handlePassRef.current = handlePass;
   }, [handlePass]);
 
-  const doAiTurn = useCallback((currentStash: string[], currentPlayerHand: string[]) => {
+  const doAiTurn = useCallback((currentStash: string[], currentPlayerHand: string[], currentPlayerTurns: number) => {
     setBoardLetters(prevBoard => {
       setAiHand(prevAiHand => {
         const { points, result } = computeAIMove(prevBoard, prevAiHand, configRef.current.POINTS_PER_LETTER, aiLevel);
@@ -277,7 +280,7 @@ export default function useGameEngine() {
         setAiPlacedIndexes(newAiPlaced);
         setAiTurns(prev => {
           const newTurns = prev + 1;
-          if (checkTurnLimitEnd(playerTurns + 1, newTurns)) {
+          if (checkTurnLimitEnd(currentPlayerTurns, newTurns)) {
             setTimeout(() => endGame(playerScore, aiScore + points, currentPlayerHand, newAiHand), 0);
           }
           return newTurns;
@@ -300,7 +303,7 @@ export default function useGameEngine() {
       });
       return prevBoard;
     });
-  }, [aiLevel, playerScore, aiScore, playerTurns, gameMode]);
+  }, [aiLevel, playerScore, aiScore, gameMode]);
 
   const endGame = useCallback((pScore: number, aScore: number, pHand: string[], aHand: string[]) => {
     let pPenalty = 0;

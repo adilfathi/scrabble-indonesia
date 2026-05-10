@@ -2,6 +2,9 @@ export interface Player {
   id: string;
   name: string;
   isReady?: boolean;
+  isOnline?: boolean;
+  score?: number;
+  turns?: number;
 }
 
 export interface GameState {
@@ -16,6 +19,11 @@ export interface GameState {
   playerTurns?: number;
   aiTurns?: number;
   isFinished?: boolean;
+  currentPlayer?: string;
+  currentPlayerName?: string;
+  players?: Player[];
+  turnEndsAt?: number;
+  turnRemainingMs?: number;
 }
 
 export interface RoomState {
@@ -23,6 +31,8 @@ export interface RoomState {
   players: Player[];
   status: 'waiting' | 'playing' | 'finished';
   gameMode?: string;
+  creatorId?: string;
+  maxPlayers?: number;
 }
 
 export type ThemeType = 'dark' | 'light' | 'sand' | 'pink';

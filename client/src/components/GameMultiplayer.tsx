@@ -95,7 +95,7 @@ export default function GameMultiplayer() {
           ) : isMyTurn ? (
             <div className="turn-badge your-turn">Giliran Kamu</div>
           ) : (
-            <div className="turn-badge thinking">Menunggu Lawan...</div>
+            <div className="turn-badge thinking">Giliran {engine.gameState.currentPlayerName || 'Lawan'}...</div>
           )}
         </div>
         <Timer seconds={engine.timer} />
@@ -121,6 +121,7 @@ export default function GameMultiplayer() {
             playerTurns={engine.gameState.playerTurns || 0}
             aiTurns={engine.gameState.aiTurns || 0}
             lastWords={engine.gameState.lastWords || []}
+            players={engine.gameState.players || []}
           />
 
           <div className="hand-section">
@@ -190,8 +191,7 @@ export default function GameMultiplayer() {
           aiScore={engine.gameState.opponentScore}
           onPlayAgain={() => {
             sounds.playClick();
-            engine.leaveRoom();
-            navigate('/multiplayer');
+            engine.startGame();
           }}
           onHome={() => {
             sounds.playClick();

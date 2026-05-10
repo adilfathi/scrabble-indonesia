@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMultiplayer } from '../context/MultiplayerContext';
-import { GAME_MODE_30, GAME_MODE_10, GAME_MODE_3 } from '../utils/constants';
+import { GAME_MODE_30, GAME_MODE_20, GAME_MODE_10, GAME_MODE_3 } from '../utils/constants';
 import { sounds } from '../utils/SoundManager';
 
 export default function MultiplayerLobby() {
@@ -9,21 +9,35 @@ export default function MultiplayerLobby() {
   const [name, setName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [mode, setMode] = useState(GAME_MODE_10);
-  const { createRoom, joinRoom, room, error } = useMultiplayer();
+  const { createRoom, joinRoom, startGame, room, error, socket } = useMultiplayer();
 
   if (room && room.status === 'waiting') {
+    const canStart = room.players.length >= 2;
+    const isHost = socket?.id === room.creatorId;
+
     return (
       <div className="home-root">
         <div className="home-container">
           <div className="home-card glass text-center">
             <h2>Room: {room.roomCode}</h2>
-            <p className="mt-4">Menunggu lawan...</p>
+            <p className="mt-4">Menunggu pemain... ({room.players.length}/{room.maxPlayers || 4})</p>
             <div className="players-list mt-4">
               {room.players.map(p => (
                 <div key={p.id} className="player-badge">{p.name}</div>
               ))}
             </div>
             <p className="diff-hint mt-4">Berikan kode ini ke temanmu.</p>
+            {isHost ? (
+              <button
+                className="btn-primary w-full mt-4"
+                onClick={() => { sounds.playClick(); startGame(); }}
+                disabled={!canStart}
+              >
+                Mulai Game
+              </button>
+            ) : (
+              <p className="diff-hint mt-4">Menunggu host memulai game...</p>
+            )}
           </div>
         </div>
       </div>
@@ -70,6 +84,12 @@ export default function MultiplayerLobby() {
                 onClick={() => { sounds.playClick(); setMode(GAME_MODE_10); }}
               >
                 10× Giliran
+              </button>
+              <button 
+                className={`mode-btn ${mode === GAME_MODE_20 ? 'active' : ''}`}
+                onClick={() => { sounds.playClick(); setMode(GAME_MODE_20); }}
+              >
+                20× Giliran
               </button>
               <button 
                 className={`mode-btn ${mode === GAME_MODE_30 ? 'active' : ''}`}

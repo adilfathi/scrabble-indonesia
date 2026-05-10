@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   GAME_MODE_30,
+  GAME_MODE_20,
   GAME_MODE_10,
   GAME_MODE_3,
   AI_LEVELS,
@@ -50,6 +51,14 @@ export default function AILobby() {
                 <span className="mode-icon-small">⚡</span>
                 <span className="mode-label">10× Giliran</span>
                 <span className="mode-desc">Cepat</span>
+              </button>
+              <button
+                className={`mode-btn ${mode === GAME_MODE_20 ? 'active' : ''}`}
+                onClick={() => { sounds.playClick(); setMode(GAME_MODE_20); }}
+              >
+                <span className="mode-icon-small">🎯</span>
+                <span className="mode-label">20× Giliran</span>
+                <span className="mode-desc">Standar</span>
               </button>
               <button
                 className={`mode-btn ${mode === GAME_MODE_30 ? 'active' : ''}`}

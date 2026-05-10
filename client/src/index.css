@@ -176,7 +176,7 @@ body {
 
 .option-section { margin-bottom: 28px; }
 .option-title { font-family: var(--font-display); font-size: 0.85rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px; }
-.mode-toggle { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mode-toggle { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
 .mode-btn { background: var(--glass); border: 1.5px solid var(--border); border-radius: var(--radius-lg); padding: 12px 8px; cursor: pointer; text-align: center; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text); }
 .mode-btn:hover { border-color: var(--border-active); }
 .mode-btn.active { border-color: var(--accent); background: var(--accent-glow); box-shadow: 0 0 15px var(--accent-glow); }

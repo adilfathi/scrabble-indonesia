@@ -6,9 +6,12 @@ const { generateRoomCode } = require('../controllers/gameController');
  * Represents a game room for multiplayer
  */
 class Room {
-  constructor(creatorId, creatorName, gameMode = '100_huruf', language = 'indonesian') {
+  constructor(creatorId, creatorName, gameMode = '10_giliran', language = 'indonesian') {
     this.code = this.generateUniqueCode();
     this.players = [{ id: creatorId, name: creatorName, isOnline: true }];
+    this.creatorId = creatorId;
+    this.maxPlayers = 4;
+    this.minPlayersToStart = 2;
     this.gameMode = gameMode;
     this.gameId = null;
     this.game = null;
@@ -40,13 +43,17 @@ class Room {
     // Check if player is rejoining (same name)
     const existingPlayer = this.players.find(p => p.name === playerName);
     if (existingPlayer) {
+      const previousId = existingPlayer.id;
       existingPlayer.id = playerId;
       existingPlayer.isOnline = true;
+      if (this.creatorId === previousId) {
+        this.creatorId = playerId;
+      }
       this.updateActivity();
-      return;
+      return { rejoined: true, previousId };
     }
 
-    if (this.players.length >= 2) {
+    if (this.players.length >= this.maxPlayers) {
       throw new Error('Room is full');
     }
     
@@ -56,13 +63,18 @@ class Room {
 
     this.players.push({ id: playerId, name: playerName, isOnline: true });
     this.updateActivity();
+    return { rejoined: false };
   }
   
   /**
    * Remove player from room
    */
   removePlayer(playerId) {
+    const wasCreator = this.creatorId === playerId;
     this.players = this.players.filter(p => p.id !== playerId);
+    if (wasCreator && this.players.length > 0) {
+      this.creatorId = this.players[0].id;
+    }
     this.updateActivity();
     return this.players.length === 0; // Returns true if room is now empty
   }
@@ -82,24 +94,26 @@ class Room {
    * Check if room is full
    */
   isFull() {
-    return this.players.length === 2;
+    return this.players.length >= this.maxPlayers;
+  }
+
+  canStart() {
+    return this.players.length >= this.minPlayersToStart;
   }
   
   /**
-   * Start game if 2 players are ready
+   * Start game if enough players are ready
    */
   startGame() {
-    if (!this.isFull()) {
+    if (!this.canStart()) {
       throw new Error('Not enough players');
     }
     
     this.game = new Game(
-      this.players[0].id,
-      this.players[0].name,
-      this.players[1].id,
-      this.players[1].name,
+      this.players.map(p => ({ id: p.id, name: p.name })),
       this.gameMode,
-      this.language
+      this.language,
+      this.creatorId
     );
     
     this.gameId = this.game.id;
@@ -124,4 +138,3 @@ class Room {
 Room.existingCodes = new Set();
 
 module.exports = Room;
-

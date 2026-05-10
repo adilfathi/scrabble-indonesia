@@ -21,6 +21,7 @@ interface MultiplayerContextType {
   isPaused: boolean;
   createRoom: (playerName: string, mode: string) => void;
   joinRoom: (playerName: string, roomCode: string) => void;
+  startGame: () => void;
   leaveRoom: () => void;
   togglePause: () => void;
   placeTile: (boardIndex: number, letterIndex: number) => void;
@@ -30,7 +31,31 @@ interface MultiplayerContextType {
   passTurn: () => void;
 }
 
+const SESSION_KEY = 'scrabble_mp_session_v1';
 const MultiplayerContext = createContext<MultiplayerContextType | undefined>(undefined);
+
+type ReconnectSession = {
+  playerName: string;
+  roomCode: string;
+};
+
+function saveSession(session: ReconnectSession) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+function loadSession(): ReconnectSession | null {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
 
 export const MultiplayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -49,121 +74,156 @@ export const MultiplayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [currentPoints, setCurrentPoints] = useState<number | null>(null);
 
   const timerRef = useRef<any>(null);
-  const passTurnRef = useRef<() => void>(() => {});
+  const sessionRef = useRef<ReconnectSession | null>(loadSession());
+  const socketRef = useRef<Socket | null>(null);
+
+  const applyGameState = (data: any) => {
+    setGameState((prev) => ({
+      ...(prev || {}),
+      ...data,
+    }));
+    if (Array.isArray(data.boardLetters)) setBoardLetters(data.boardLetters);
+    if (Array.isArray(data.yourLetters)) setLocalHand(data.yourLetters);
+    setPlacedIndexes([]);
+    if (typeof data.turnEndsAt === 'number') {
+      const secs = Math.max(0, Math.ceil((data.turnEndsAt - Date.now()) / 1000));
+      setTimer(secs);
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
       const c = await loadLanguageConfig('/config/indonesian.jsonp');
       await loadDictionary('/dict/indonesian.txt');
       setConfig(c);
-      
-      const newSocket = io();
+
+      const newSocket = io({ reconnection: true, reconnectionAttempts: Infinity });
+      socketRef.current = newSocket;
       setSocket(newSocket);
       setLoading(false);
 
+      newSocket.on('connect', () => {
+        const saved = sessionRef.current || loadSession();
+        if (saved && saved.roomCode) {
+          newSocket.emit('joinRoom', {
+            playerName: saved.playerName,
+            roomCode: saved.roomCode,
+          });
+        }
+      });
+
       newSocket.on('roomCreated', (data) => {
-        setRoom({ roomCode: data.roomCode, players: data.players, status: 'waiting', gameMode: data.gameMode });
+        setRoom({
+          roomCode: data.roomCode,
+          players: data.players,
+          status: data.status || 'waiting',
+          gameMode: data.gameMode,
+          creatorId: data.creatorId,
+          maxPlayers: data.maxPlayers,
+        });
         setError(null);
       });
 
       newSocket.on('roomJoined', (data) => {
-        setRoom({ roomCode: data.roomCode, players: data.players, status: 'waiting', gameMode: data.gameMode });
+        setRoom({
+          roomCode: data.roomCode,
+          players: data.players,
+          status: data.status || 'waiting',
+          gameMode: data.gameMode,
+          creatorId: data.creatorId,
+          maxPlayers: data.maxPlayers,
+        });
         setError(null);
       });
 
       newSocket.on('playerJoined', (data) => {
-        setRoom(prev => prev ? { ...prev, players: data.players, gameMode: data.gameMode } : null);
+        setRoom((prev) => prev
+          ? {
+            ...prev,
+            players: data.players,
+            gameMode: data.gameMode,
+            creatorId: data.creatorId ?? prev.creatorId,
+            maxPlayers: data.maxPlayers ?? prev.maxPlayers,
+            status: data.status ?? prev.status,
+          }
+          : null);
+      });
+
+      newSocket.on('playerLeft', (data) => {
+        setRoom((prev) => prev
+          ? {
+            ...prev,
+            players: data.players || prev.players,
+            status: data.status || prev.status,
+          }
+          : null);
+      });
+
+      newSocket.on('roomUpdated', (data) => {
+        setRoom((prev) => prev
+          ? {
+            ...prev,
+            players: data.players,
+            gameMode: data.gameMode,
+            creatorId: data.creatorId ?? prev.creatorId,
+            maxPlayers: data.maxPlayers ?? prev.maxPlayers,
+            status: data.status ?? prev.status,
+          }
+          : null);
       });
 
       newSocket.on('roomError', (data) => {
         setError(data.message);
+        if (typeof data?.message === 'string' && data.message.includes('Room tidak ditemukan')) {
+          clearSession();
+          sessionRef.current = null;
+        }
       });
 
       newSocket.on('gameStarted', (data) => {
         setGameId(data.gameId);
-        setRoom(prev => prev ? { ...prev, status: 'playing' } : null);
-        setGameState({
-          boardLetters: Array(TOTAL_CELLS).fill(''),
-          yourLetters: data.yourLetters,
-          opponentScore: 0,
-          yourScore: 0,
-          isYourTurn: data.isYourTurn,
-          letterStash: 100
-        });
-        setBoardLetters(Array(TOTAL_CELLS).fill(''));
-        setLocalHand(data.yourLetters);
-        setPlacedIndexes([]);
+        setRoom((prev) => (prev ? { ...prev, status: 'playing' } : null));
         setIsPaused(false);
-        if (data.isYourTurn) startTimer();
+        applyGameState(data);
       });
 
-      newSocket.on('moveAccepted', (data) => {
-        setGameState(prev => prev ? {
-          ...prev,
-          boardLetters: data.boardLetters,
-          yourLetters: data.yourLetters,
-          yourScore: data.yourScore,
-          isYourTurn: data.isYourTurn,
-          playerTurns: data.playerTurns,
-          aiTurns: data.aiTurns
-        } : null);
-        setBoardLetters(data.boardLetters);
-        setLocalHand(data.yourLetters);
-        setPlacedIndexes([]);
-        if (data.isYourTurn) startTimer();
-        else stopTimer();
+      newSocket.on('gameStateUpdated', (data) => {
+        applyGameState(data);
       });
 
-      newSocket.on('opponentMove', (data) => {
-        setGameState(prev => prev ? {
-          ...prev,
-          boardLetters: data.boardLetters,
-          opponentScore: data.opponentScore,
-          isYourTurn: data.isYourTurn,
-          letterStash: data.letterStash,
-          playerTurns: data.playerTurns,
-          aiTurns: data.aiTurns
-        } : null);
-        setBoardLetters(data.boardLetters);
-        if (data.isYourTurn) startTimer();
-      });
-
-      newSocket.on('opponentPassed', (data) => {
-        setGameState(prev => prev ? { 
-          ...prev, 
-          isYourTurn: data.isYourTurn,
-          playerTurns: data.playerTurns,
-          aiTurns: data.aiTurns
-        } : null);
-        if (data.isYourTurn) startTimer();
-      });
+      // Keep compatibility if server emits legacy events.
+      newSocket.on('moveAccepted', (data) => applyGameState(data));
+      newSocket.on('opponentMove', (data) => applyGameState(data));
+      newSocket.on('opponentPassed', (data) => applyGameState(data));
 
       newSocket.on('pauseToggled', (data) => {
         setIsPaused(data.isPaused);
       });
 
       newSocket.on('gameEnded', (data) => {
-        setRoom(prev => prev ? { ...prev, status: 'finished' } : null);
-        setGameState(prev => prev ? {
+        setRoom((prev) => (prev ? { ...prev, status: 'finished' } : null));
+        setGameState((prev) => prev ? {
           ...prev,
           yourScore: data.yourScore,
           opponentScore: data.opponentScore,
-          isFinished: true
+          isFinished: true,
+          players: data.players || prev.players,
         } : null);
         stopTimer();
-        
-        if (data.yourScore > data.opponentScore) {
-          sounds.playWin();
-        } else if (data.opponentScore > data.yourScore) {
-          sounds.playLose();
-        }
+
+        if (data.winner === true) sounds.playWin();
+        else sounds.playLose();
+      });
+
+      newSocket.on('opponentDisconnected', () => {
+        setError('Koneksi pemain lain terputus. Menunggu reconnect...');
       });
     };
 
     init();
     return () => {
-      if (socket) socket.disconnect();
       stopTimer();
+      if (socketRef.current) socketRef.current.disconnect();
     };
   }, []);
 
@@ -177,30 +237,55 @@ export const MultiplayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [boardLetters, placedIndexes, config]);
 
   useEffect(() => {
-    if (isPaused) stopTimer();
-    else if (gameState?.isYourTurn && room?.status === 'playing') startTimer();
-  }, [isPaused, gameState?.isYourTurn, room?.status]);
+    if (isPaused || room?.status !== 'playing' || gameState?.isFinished || !gameState?.turnEndsAt) {
+      stopTimer();
+      return;
+    }
 
-  const startTimer = () => {
-    if (isPaused) return;
-    setTimer(TURN_TIMER_SECONDS);
+    const tick = () => {
+      const secs = Math.max(0, Math.ceil((gameState.turnEndsAt! - Date.now()) / 1000));
+      setTimer(secs);
+    };
+
+    tick();
     clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setTimer(prev => {
-        if (prev <= 1) {
-          stopTimer();
-          setTimeout(() => passTurnRef.current(), 0);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+    timerRef.current = setInterval(tick, 250);
+    return () => clearInterval(timerRef.current);
+  }, [isPaused, room?.status, gameState?.turnEndsAt, gameState?.isFinished]);
 
   const stopTimer = () => clearInterval(timerRef.current);
 
-  const createRoom = (playerName: string, mode: string) => socket?.emit('createRoom', { playerName, gameMode: mode });
-  const joinRoom = (playerName: string, roomCode: string) => socket?.emit('joinRoom', { playerName, roomCode });
+  const createRoom = (playerName: string, mode: string) => {
+    const trimmed = playerName.trim();
+    socket?.emit('createRoom', { playerName: trimmed, gameMode: mode });
+    // roomCode will be filled after roomCreated.
+    sessionRef.current = { playerName: trimmed, roomCode: '' };
+  };
+
+  const joinRoom = (playerName: string, roomCode: string) => {
+    const session = {
+      playerName: playerName.trim(),
+      roomCode: roomCode.trim().toUpperCase(),
+    };
+    sessionRef.current = session;
+    saveSession(session);
+    socket?.emit('joinRoom', session);
+  };
+
+  const startGame = () => {
+    if (room) socket?.emit('startGame', { roomCode: room.roomCode });
+  };
+
+  useEffect(() => {
+    if (!room?.roomCode || !sessionRef.current?.playerName) return;
+    const completed = {
+      playerName: sessionRef.current.playerName,
+      roomCode: room.roomCode,
+    };
+    sessionRef.current = completed;
+    saveSession(completed);
+  }, [room?.roomCode]);
+
   useEffect(() => {
     if (gameState?.isYourTurn && room?.status === 'playing' && !gameState?.isFinished) {
       sounds.playTurnStart();
@@ -215,9 +300,16 @@ export const MultiplayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const leaveRoom = () => {
     if (room) socket?.emit('leaveRoom', { roomCode: room.roomCode });
+    clearSession();
+    sessionRef.current = null;
     setRoom(null);
     setGameId(null);
     setGameState(null);
+    setPlacedIndexes([]);
+    setBoardLetters(Array(TOTAL_CELLS).fill(''));
+    setLocalHand([]);
+    setIsPaused(false);
+    setCurrentPoints(null);
     stopTimer();
   };
 
@@ -227,41 +319,41 @@ export const MultiplayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const placeTile = (boardIndex: number, letterIndex: number) => {
     if (!gameState?.isYourTurn) return;
-    setLocalHand(prev => {
+    setLocalHand((prev) => {
       const next = [...prev];
       next.splice(letterIndex, 1);
       return next;
     });
-    setBoardLetters(prev => {
+    setBoardLetters((prev) => {
       const next = [...prev];
       next[boardIndex] = localHand[letterIndex];
       return next;
     });
-    setPlacedIndexes(prev => [...prev, boardIndex]);
+    setPlacedIndexes((prev) => [...prev, boardIndex]);
   };
 
   const removeTile = (boardIndex: number) => {
     if (!gameState?.isYourTurn) return;
     const letter = boardLetters[boardIndex];
     if (!placedIndexes.includes(boardIndex)) return;
-    setLocalHand(prev => [...prev, letter]);
-    setBoardLetters(prev => {
+    setLocalHand((prev) => [...prev, letter]);
+    setBoardLetters((prev) => {
       const next = [...prev];
       next[boardIndex] = '';
       return next;
     });
-    setPlacedIndexes(prev => prev.filter(i => i !== boardIndex));
+    setPlacedIndexes((prev) => prev.filter((i) => i !== boardIndex));
   };
 
   const recallTiles = () => {
     if (!gameState?.isYourTurn) return;
-    const letters = placedIndexes.map(i => boardLetters[i]);
-    setBoardLetters(prev => {
+    const letters = placedIndexes.map((i) => boardLetters[i]);
+    setBoardLetters((prev) => {
       const next = [...prev];
-      placedIndexes.forEach(i => { next[i] = ''; });
+      placedIndexes.forEach((i) => { next[i] = ''; });
       return next;
     });
-    setLocalHand(prev => [...prev, ...letters]);
+    setLocalHand((prev) => [...prev, ...letters]);
     setPlacedIndexes([]);
   };
 
@@ -278,29 +370,43 @@ export const MultiplayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       boardLetters,
       words: result.words,
       points: result.points,
-      remainingLetters: localHand
+      remainingLetters: localHand,
     });
-    stopTimer();
   };
 
   const passTurn = () => {
     if (!gameState?.isYourTurn) return;
     recallTiles();
     socket?.emit('passTurn', { gameId });
-    stopTimer();
   };
-
-  useEffect(() => {
-    passTurnRef.current = passTurn;
-  }, [gameState?.isYourTurn, gameId, placedIndexes]);
 
   return (
     <MultiplayerContext.Provider value={{
-      socket, loading, room, gameId, gameState, error, config, currentPoints,
-      boardLetters, placedIndexes, localHand, timer, isPaused,
-      createRoom, joinRoom, leaveRoom, togglePause,
-      placeTile, removeTile, recallTiles, makeMove, passTurn
-    }}>
+      socket,
+      loading,
+      room,
+      gameId,
+      gameState,
+      error,
+      config,
+      currentPoints,
+      boardLetters,
+      placedIndexes,
+      localHand,
+      timer,
+      isPaused,
+      createRoom,
+      joinRoom,
+      startGame,
+      leaveRoom,
+      togglePause,
+      placeTile,
+      removeTile,
+      recallTiles,
+      makeMove,
+      passTurn,
+    }}
+    >
       {children}
     </MultiplayerContext.Provider>
   );

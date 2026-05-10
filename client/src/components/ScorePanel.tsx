@@ -1,5 +1,5 @@
 import React from 'react';
-import { GAME_MODE_30, GAME_MODE_10, GAME_MODE_3, MAX_TURNS_MODE_30, MAX_TURNS_MODE_10, MAX_TURNS_MODE_3 } from '../utils/constants';
+import { GAME_MODE_30, GAME_MODE_20, GAME_MODE_10, GAME_MODE_3, MAX_TURNS_MODE_30, MAX_TURNS_MODE_20, MAX_TURNS_MODE_10, MAX_TURNS_MODE_3 } from '../utils/constants';
 
 interface ScorePanelProps {
   playerScore: number;
@@ -9,6 +9,7 @@ interface ScorePanelProps {
   playerTurns: number;
   aiTurns: number;
   lastWords: string[];
+  players?: Array<{ id: string; name: string; score?: number; turns?: number }>;
 }
 
 export default function ScorePanel({
@@ -19,10 +20,12 @@ export default function ScorePanel({
   playerTurns,
   aiTurns,
   lastWords,
+  players,
 }: ScorePanelProps) {
   
   let turnsRemaining = null;
   if (gameMode === GAME_MODE_30) turnsRemaining = MAX_TURNS_MODE_30 - playerTurns;
+  if (gameMode === GAME_MODE_20) turnsRemaining = MAX_TURNS_MODE_20 - playerTurns;
   if (gameMode === GAME_MODE_10) turnsRemaining = MAX_TURNS_MODE_10 - playerTurns;
   if (gameMode === GAME_MODE_3) turnsRemaining = MAX_TURNS_MODE_3 - playerTurns;
 
@@ -52,6 +55,15 @@ export default function ScorePanel({
           </div>
         )}
       </div>
+
+      {players && players.length > 0 && (
+        <div className="last-words">
+          <span className="last-words-label">Skor pemain:</span>
+          {players.map((p) => (
+            <span key={p.id} className="word-chip">{p.name}: {p.score || 0}</span>
+          ))}
+        </div>
+      )}
 
       {lastWords.length > 0 && (
         <div className="last-words">

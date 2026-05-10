@@ -7,10 +7,12 @@ export const CENTER_INDEX = 112; // 7*15 + 7
 
 // Game modes
 export const GAME_MODE_30 = '30_giliran';
+export const GAME_MODE_20 = '20_giliran';
 export const GAME_MODE_10 = '10_giliran';
 export const GAME_MODE_3 = '3_giliran';
 
 export const MAX_TURNS_MODE_30 = 30; // per player
+export const MAX_TURNS_MODE_20 = 20; // per player
 export const MAX_TURNS_MODE_10 = 10; // per player
 export const MAX_TURNS_MODE_3 = 3; // per player
 
